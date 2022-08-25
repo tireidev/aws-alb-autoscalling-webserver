@@ -3,7 +3,7 @@
 # メイン処理
 # 
 # [概要]
-# AWS上のパブリックサブネットにNginxを構築する
+# AWS上にALB + AutoScaling構成のNginxを構築する
 # 
 # [手順]
 # 0. プロバイダ設定(AWS)
@@ -14,10 +14,11 @@
 #   1.4. Subnet構築
 #   1.5. RouteTableとPublic Subnetの紐付け
 # 2. セキュリティ設定
-#   2.1. MyIP取得
-#   2.2. ネットワークACL構築
-#   2.3. セキュリティグループ構築
-#   2.4. キーペア構築 ※EC2インスタンスのSSH接続で利用するため
+#   2.1. IAM作成
+#   2.2. MyIP取得
+#   2.3. VPCエンドポイント構築
+#   2.4. セキュリティグループ構築
+#   2.5. キーペア構築 ※EC2インスタンスのSSH接続で利用するため
 # 3. EC2インスタンス構築
 # ========================================================== #
 
@@ -79,6 +80,9 @@ module "aws_route_table_association" {
   u_private_subnet_1a_id       = module.aws_subnet.private_subnet_1a_id
   u_private_subnet_1c_id       = module.aws_subnet.private_subnet_1c_id
 }
+
+# ========================================================== #
+# 2. セキュリティ設定
 # ========================================================== #
 #   2.1. IAM作成
 # ========================================================== #
@@ -125,102 +129,56 @@ module "aws_key_pairs" {
   u_public_key_name  = var.u_public_key_name
 }
 
-resource "aws_launch_template" "foo" {
-  name = "foo"
+# ========================================================== #
+# 3. ALB + AutoScaling 構築
+# ========================================================== #
+#   3.1. 起動テンプレート作成
+# ========================================================== #
+module "aws_launch_template" {
+  source             = "./modules/webserver/aws_launch_template"
+  u_security_group_web_id = module.aws_security_group.sg_web_id
+  u_private_subnet_1a_id = module.aws_subnet.private_subnet_1a_id
+}
 
-  image_id = "ami-00d101850e971728d"
-  iam_instance_profile {
-    name = "EC2RoleforSSM"
-  }
-  instance_type = "t2.micro"
-  key_name      = "hanson_key.pem"
+# ========================================================== #
+#   3.2. ALB作成
+# ========================================================== #
+module "aws_lb" {
+  source                 = "./modules/webserver/aws_lb"
+  u_security_group_alb_id = module.aws_security_group.sg_alb_id
+  u_public_subnet_1a_id = module.aws_subnet.public_subnet_1a_id
+  u_public_subnet_1c_id = module.aws_subnet.public_subnet_1c_id
+}
 
-  network_interfaces {
-    # associate_public_ip_address = true
-    security_groups = [module.aws_security_group.sg_web_id]
-    subnet_id       = module.aws_subnet.private_subnet_1a_id
-  }
+module "aws_lb_target_group" {
+  source              = "./modules/webserver/aws_lb_target_group"
+  u_vpc_id            = module.aws_vpc.id
+}
 
-  placement {
-    availability_zone = "ap-northeast-1a"
-  }
+module "aws_lb_listener" {
+  source              = "./modules/webserver/aws_lb_listener"
+  u_lb_arn            = module.aws_lb.arn
+  u_lb_target_group_arn = module.aws_lb_target_group.arn
+}
 
-  tag_specifications {
-    resource_type = "instance"
+# ========================================================== #
+#   3.3. Auto Scaling Group作成
+# ========================================================== #
+module "aws_autoscaling_group" {
+  source              = "./modules/webserver/aws_autoscaling_group"
+  u_private_subnet_1a_id = module.aws_subnet.private_subnet_1a_id
+  u_private_subnet_1c_id = module.aws_subnet.private_subnet_1c_id
+  u_launch_template_web_id = module.aws_launch_template.web_id
+  u_launch_template_web_latest_version = module.aws_launch_template.web_latest_version
+}
 
-    tags = {
-      Name = "test"
-    }
-  }
-
-  user_data = filebase64("${path.module}/script.sh")
+module "aws_autoscaling_attachment" {
+  source              = "./modules/webserver/aws_autoscaling_attachment"
+  u_autoscaling_group_id = module.aws_autoscaling_group.id
+  u_lb_target_group_arn = module.aws_lb_target_group.arn
 }
 
 
-resource "aws_lb" "web_elb" {
-  name               = "web-elb"
-  internal           = false
-  load_balancer_type = "application"
-  security_groups = [
-    module.aws_security_group.sg_alb_id
-  ]
-  subnets = [
-    module.aws_subnet.public_subnet_1a_id,
-    module.aws_subnet.public_subnet_1c_id
-  ]
-
-  # health_check {
-  #   timeout = 3
-  #   interval = 30
-  #   path = "/"
-  #   port = "80"
-  # }
-
-  # listener {
-  #   lb_port = 80
-  #   lb_protocol = "http"
-  #   instance_port = "80"
-  #   instance_protocol = "http"
-  # }
-
-}
-
-resource "aws_lb_target_group" "test" {
-  name     = "tf-example-lb-tg"
-  port     = 80
-  protocol = "HTTP"
-  vpc_id   = module.aws_vpc.id
-}
-
-resource "aws_lb_listener" "front_end" {
-  load_balancer_arn = aws_lb.web_elb.arn
-  port              = "80"
-  protocol          = "HTTP"
-
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.test.arn
-  }
-}
-
-resource "aws_autoscaling_group" "bar" {
-  vpc_zone_identifier = [module.aws_subnet.private_subnet_1a_id, module.aws_subnet.private_subnet_1c_id]
-  desired_capacity    = 1
-  max_size            = 1
-  min_size            = 1
-
-  launch_template {
-    id      = aws_launch_template.foo.id
-    version = aws_launch_template.foo.latest_version
-  }
-
-  health_check_type = "ELB"
-}
-
-resource "aws_autoscaling_attachment" "asg_attachment_bar" {
-  autoscaling_group_name = aws_autoscaling_group.bar.id
-  lb_target_group_arn    = aws_lb_target_group.test.arn
-}
 
 
 
