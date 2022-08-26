@@ -1,25 +1,6 @@
 # ========================================================== #
-# [処理名]
 # キーペア構築 ※EC2インスタンスのSSH接続で利用するため
-# 
-# [概要]
-# EC2インスタンスのSSH接続で利用するためのキーペアを作成する
-#
-# [引数]
-# 変数名: u_key_name
-# 値: AWSに登録するためのキーペアの名前
-# 
-# 変数名: u_public_key_name
-# 値: パブリックキー名
-# 
-# 変数名: u_private_key_name
-# 値: プライベートキー名
-# 
-# [output]
-# key_name: AWSに登録するためのキーペアの名前
-#
 # ========================================================== #
-
 resource "tls_private_key" "keygen" {
   algorithm = "RSA"
   rsa_bits  = 4096
@@ -31,7 +12,6 @@ resource "aws_key_pair" "key_pair" {
 }
 
 resource "local_sensitive_file" "keypair_pem" {
-  # filename        = "${path.module}/${var.private_key_name}"
   filename        = "${var.u_private_key_name}"
   content         = tls_private_key.keygen.private_key_pem
   file_permission = "0600"

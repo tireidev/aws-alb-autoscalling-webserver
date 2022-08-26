@@ -1,30 +1,6 @@
 # ========================================================== #
-# [処理名]
-# セキュリティグループ構築
-# 
-# [概要]
-# セキュリティグループ構築
-# ・インバウンドルール
-#    接続元:MyIP
-#    ポート:22(TCP)、80(TCP)
-#
-# ・アウトバウンドルール
-#    接続先:0.0.0.0/0
-#    ポート:全プロトコル
-#
-# [引数]
-# 変数名: u_vpc_id
-# 値: VPCID
-# 
-# 変数名: u_public_subnet_ip
-# 値: パブリックサブネットIPアドレス
-# 
-# [output]
-# なし
-#
-# ========================================================== #
-
 # ALB用セキュリティグループ
+# ========================================================== #
 resource "aws_security_group" "prj_dev_sg_alb" {
   name        = "prj_dev_sg_alb"
   description = "Allow http and https traffic."
@@ -65,7 +41,9 @@ output "sg_alb_id" {
   value = "${aws_security_group.prj_dev_sg_alb.id}"
 }
 
+# ========================================================== #
 # webサーバ用セキュリティグループ
+# ========================================================== #
 resource "aws_security_group" "prj_dev_sg_web" {
   name        = "prj_dev_sg_web"
   description = "Allow http and https traffic."
@@ -78,18 +56,6 @@ resource "aws_security_group" "prj_dev_sg_web" {
   # インバウンドルールはaws_security_group_ruleにて定義
 }
 
-# 22番ポート許可のインバウンドルール
-resource "aws_security_group_rule" "ingress_allow_22_for_web" {
-  type        = "ingress"
-  from_port   = 22
-  to_port     = 22
-  protocol    = "tcp"
-  cidr_blocks = [var.u_allowed_cidr_myip]
-
-  # セキュリティグループと紐付け
-  security_group_id = "${aws_security_group.prj_dev_sg_web.id}"
-}
-
 # 80番ポート許可のインバウンドルール
 resource "aws_security_group_rule" "ingress_allow_80_for_web" {
   type        = "ingress"
@@ -97,7 +63,6 @@ resource "aws_security_group_rule" "ingress_allow_80_for_web" {
   to_port     = 80
   protocol    = "tcp"
   source_security_group_id  = "${aws_security_group.prj_dev_sg_alb.id}"
-  # cidr_blocks = [var.u_allowed_cidr_myip]
 
   # セキュリティグループと紐付け
   security_group_id = "${aws_security_group.prj_dev_sg_web.id}"

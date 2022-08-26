@@ -1,3 +1,6 @@
+# ========================================================== #
+# 起動テンプレート作成
+# ========================================================== #
 resource "aws_launch_template" "web" {
   name = "web"
 
@@ -9,9 +12,6 @@ resource "aws_launch_template" "web" {
   key_name      = "hanson_key.pem"
 
   network_interfaces {
-    # associate_public_ip_address = true
-    # security_groups = [module.aws_security_group.sg_web_id]
-    # subnet_id       = module.aws_subnet.private_subnet_1a_id
     security_groups = [var.u_security_group_web_id]
     subnet_id       = var.u_private_subnet_1a_id
   }

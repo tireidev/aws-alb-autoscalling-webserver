@@ -1,18 +1,6 @@
 # ========================================================== #
-# [処理名]
-# VPC ENDPOINT構築
-# 
-# [概要]
-# VPC ENDPOINT構築
-#
-# [引数]
-# 変数名: u_vpc_ip_ip4
-# 値: 10.0.0.0/16
-# 
-# [output]
-# なし
+# VPC Endpoint用IAMポリシー
 # ========================================================== #
-
 data  "aws_iam_policy_document" "vpc_endpoint" {
   statement {
     effect    = "Allow"
@@ -25,6 +13,9 @@ data  "aws_iam_policy_document" "vpc_endpoint" {
   }
 }
 
+# ========================================================== #
+# VPC Endpoint構築(com.amazonaws.ap-northeast-1.ssm)
+# ========================================================== #
 resource "aws_vpc_endpoint" "ssm" {
   vpc_endpoint_type = "Interface"
   vpc_id            =  var.u_vpc_id
@@ -39,6 +30,9 @@ resource "aws_vpc_endpoint" "ssm" {
   ]
 }
 
+# ========================================================== #
+# VPC Endpoint構築(com.amazonaws.ap-northeast-1.ssmmessages)
+# ========================================================== #
 resource "aws_vpc_endpoint" "ssmmessages" {
   vpc_endpoint_type = "Interface"
   vpc_id            = var.u_vpc_id
@@ -53,6 +47,9 @@ resource "aws_vpc_endpoint" "ssmmessages" {
   ]
 }
 
+# ========================================================== #
+# VPC Endpoint構築(com.amazonaws.ap-northeast-1.ec2messages)
+# ========================================================== #
 resource "aws_vpc_endpoint" "ec2messages" {
   vpc_endpoint_type = "Interface"
   vpc_id            = var.u_vpc_id
@@ -67,6 +64,9 @@ resource "aws_vpc_endpoint" "ec2messages" {
   ]
 }
 
+# ========================================================== #
+# VPC Endpoint構築(com.amazonaws.ap-northeast-1.s3)
+# ========================================================== #
 resource "aws_vpc_endpoint" "s3" {
   vpc_endpoint_type = "Gateway"
   vpc_id            = var.u_vpc_id
